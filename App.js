@@ -1,14 +1,26 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { 
+  StyleSheet, 
+  Text, 
+  View, 
+  TextInput, 
+  TouchableOpacity, 
+  ScrollView, 
+  KeyboardAvoidingView, 
+  Platform, 
+  ActivityIndicator 
+} from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import axios from 'axios';
 
-// ВАЖНО: здесь твой IP ноутбука
 const SERVER_URL = 'http://192.168.1.181:8000/chat';
 
 export default function App() {
   const [inputText, setInputText] = useState('');
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
+  
+  const scrollViewRef = useRef();
 
   const sendMessage = async () => {
     if (!inputText.trim()) return;
@@ -16,13 +28,11 @@ export default function App() {
     const userMsg = inputText.trim();
     setInputText('');
     
-    // Добавляем сообщение пользователя в чат
     setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
     setLoading(true);
 
     try {
-      const response = await axios.post(SERVER_URL, { message: userMsg }, { timeout: 10000 });
-      // Добавляем ответ Джарвиса
+      const response = await axios.post(SERVER_URL, { message: userMsg }, { timeout: 30000 });
       setMessages(prev => [...prev, { role: 'jarvis', text: response.data.reply }]);
     } catch (error) {
       console.error(error);
@@ -33,70 +43,81 @@ export default function App() {
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>🤖 Jarvis</Text>
-      </View>
-
-      <ScrollView 
-        style={styles.chatArea}
-        contentContainerStyle={{ paddingBottom: 20 }}
-      >
-        {messages.length === 0 && (
-          <Text style={styles.emptyText}>Напиши что-нибудь Джарвису...</Text>
-        )}
-        {messages.map((msg, index) => (
-          <View 
-            key={index} 
-            style={[
-              styles.messageBubble, 
-              msg.role === 'user' ? styles.userBubble : styles.jarvisBubble
-            ]}
-          >
-            <Text style={msg.role === 'user' ? styles.userText : styles.jarvisText}>
-              {msg.text}
-            </Text>
-          </View>
-        ))}
-        {loading && (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator color="#007AFF" />
-            <Text style={styles.loadingText}>Джарвис думает...</Text>
-          </View>
-        )}
-      </ScrollView>
-
-      <View style={styles.inputArea}>
-        <TextInput
-          style={styles.input}
-          placeholder="Сообщение..."
-          value={inputText}
-          onChangeText={setInputText}
-          multiline
-        />
-        <TouchableOpacity 
-          style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]} 
-          onPress={sendMessage}
-          disabled={!inputText.trim() || loading}
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+        <KeyboardAvoidingView 
+          style={styles.container} 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
-          <Text style={styles.sendButtonText}>➤</Text>
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>🤖 Jarvis</Text>
+          </View>
+
+          <ScrollView 
+            ref={scrollViewRef}
+            style={styles.chatArea}
+            contentContainerStyle={{ paddingBottom: 20 }}
+            onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+          >
+            {messages.length === 0 && (
+              <Text style={styles.emptyText}>Напиши что-нибудь Джарвису...</Text>
+            )}
+            {messages.map((msg, index) => (
+              <View 
+                key={index} 
+                style={[
+                  styles.messageBubble, 
+                  msg.role === 'user' ? styles.userBubble : styles.jarvisBubble
+                ]}
+              >
+                <Text style={msg.role === 'user' ? styles.userText : styles.jarvisText}>
+                  {msg.text}
+                </Text>
+              </View>
+            ))}
+            {loading && (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator color="#007AFF" />
+                <Text style={styles.loadingText}>Джарвис думает...</Text>
+              </View>
+            )}
+          </ScrollView>
+
+          <View style={styles.inputArea}>
+            <TextInput
+              style={styles.input}
+              placeholder="Сообщение..."
+              value={inputText}
+              onChangeText={setInputText}
+              multiline
+            />
+            <TouchableOpacity 
+              style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]} 
+              onPress={sendMessage}
+              disabled={!inputText.trim() || loading}
+            >
+              <Text style={styles.sendButtonText}>➤</Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
-}
+} // <--- ВОТ ЭТА СКОБКА БЫЛА ПОТЕРЯНА
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
   container: {
     flex: 1,
     backgroundColor: '#F5F5F5',
   },
   header: {
     backgroundColor: '#FFFFFF',
-    paddingTop: 60,
+    paddingTop: 15,
     paddingBottom: 15,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
@@ -158,6 +179,8 @@ const styles = StyleSheet.create({
   inputArea: {
     flexDirection: 'row',
     padding: 10,
+    // Мы убрали жесткий paddingBottom: 50, 
+    // потому что SafeAreaView (edges=['bottom']) теперь сам делает правильный отступ
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#E0E0E0',
